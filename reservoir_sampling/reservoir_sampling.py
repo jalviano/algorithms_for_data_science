@@ -32,7 +32,8 @@ def reservoir_sampling(seq):
 
 
 if __name__ == '__main__':
-    plot_results(np.arange(1, 101), 100)
-    plot_results(np.arange(1, 101), 1000)
-    plot_results(np.arange(1, 101), 10000)
-    plot_results(np.arange(1, 101), 100000)
+    trials = (1, 1000, 10000, 100000)
+    for t in trials:
+        print('Sampling over {} trials...'.format(t))
+        plot_results(np.arange(1, 101), t)
+        print('Done!')
