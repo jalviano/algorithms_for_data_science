@@ -257,47 +257,7 @@ class BST(object):
                                                    current_node.right_child.right_child)
 
 
-def _naive_frequency(k, epsilon):
-    """
-    Maintain a list of items being counted. Initially the list is empty. For each item, if it is the same as some item
-    on the list, increment its counter by one. If it differs from all the items on the list, then if there are less than
-    k items on the list, add the item to the list with its counter set to one. If there are already k items on the list
-    decrement each of the current counters by one. Delete an element from the list if its count becomes zero.
-
-    Implement for k = 500, and return all the hashtags that occur at least 0.002th fraction of times in the dataset.
-    It is ok to return the first 15 characters of the hashtag.
-    """
-    items = BST()
-    n_hashtags = 0
-    with zipfile.ZipFile('tweetstream.zip') as zf:
-        with zf.open('tweetstream.txt') as f:
-            counter = 0
-            for line in f:
-                try:
-                    stream = json.loads(line)
-                    hashtags = stream['entities']['hashtags']
-                    for ht in hashtags:
-                        tag = ht['text']
-                        n_hashtags += 1
-                        if tag in items:
-                            # increment its counter by one
-                            items.increment(tag)
-                        elif len(items) < k:
-                            items.put(tag, 1)
-                        else:
-                            # decrement each of the current counters by one
-                            pass
-                except (json.decoder.JSONDecodeError, KeyError):
-                    pass
-                counter += 1
-                if counter > int(k * 100):
-                    break
-    for item in items:
-        print(item)
-    return items
-
-
-def naive_frequency(k, epsilon):
+def naive_frequency(k, gamma):
     """
     Maintain a list of items being counted. Initially the list is empty. For each item, if it is the same as some item
     on the list, increment its counter by one. If it differs from all the items on the list, then if there are less than
@@ -310,41 +270,117 @@ def naive_frequency(k, epsilon):
     results = []
     items = {}
     n_hashtags = 0
+    # Open JSON tweet data file
     with zipfile.ZipFile('tweetstream.zip') as zf:
         with zf.open('tweetstream.txt') as f:
+            # Read file one line at a time
             for line in f:
                 try:
                     stream = json.loads(line)
+                    # Get hashtags for tweet
                     hashtags = stream['entities']['hashtags']
                     for ht in hashtags:
                         tag = ht['text']
+                        # Increment total number of hashtags seen so far
                         n_hashtags += 1
+                        # Check if hashtag is already in the list
                         if tag in items:
+                            # Hashtag is in list: increment counter by one
                             items[tag] += 1
                         elif len(items) < k:
+                            # Hashtag is not in list and there are few than k items: add hashtag to list
                             items[tag] = 1
                         else:
+                            # Hashtag is not in list and there are at least k items: decrement all item counters in list
+                            # add remove if counter becomes zero
                             for key in list(items.keys()):
                                 items[key] -= 1
                                 if items[key] <= 0:
                                     del items[key]
                 except (json.decoder.JSONDecodeError, KeyError):
                     pass
+    # Get all items with frequency >= gamma
     for tag, freq in items.items():
-        if freq / n_hashtags >= epsilon:
+        if freq / n_hashtags >= gamma:
             results.append(tag)
-    return results  # ['Job', 'Jobs', 'TweetMyJobs', 'meteoAlarm', 'Viña2013']
+    return results  # ['Job', 'Jobs', 'TweetMyJobs', 'meteoAlarm', 'Viña2013']; N = 894098
 
 
-def count_min_sketch():
+def count_min_sketch(w, s, gamma):
     """
     Implement the Count-Min data structure along with min-heap such that any hashtag that occurs at least 0.002th
     fraction of times are returned, and any hashtag that is returned has frequency at least 0.001th fraction of the
     whole dataset size. You should have sufficient confidence on your answer.
     """
-    return
+    results = []
+    sketch = np.zeros((w, s))
+    H = get_hash_family(s, w)
+    n_hashtags = 0
+    # Open JSON tweet data file
+    with zipfile.ZipFile('tweetstream.zip') as zf:
+        with zf.open('tweetstream.txt') as f:
+            counter = 0
+            # Read file one line at a time
+            for line in f:
+                try:
+                    stream = json.loads(line)
+                    # Get hashtags for tweet
+                    hashtags = stream['entities']['hashtags']
+                    for ht in hashtags:
+                        tag = ht['text']
+                        # Increment total number of hashtags seen so far
+                        n_hashtags += 1
+                        counts = []
+                        # Get hashes for all functions in hash family
+                        for i, h in enumerate(H):
+                            j = h(tag)
+                            sketch[j, i] += 1
+                            counts.append(sketch[j, i])
+                        # Get frequency as minimum count
+                        freq = min(counts)
+                        # Check if hashtag has frequency >= gamma
+                        if freq / 894098 >= gamma and tag not in results:
+                            results.append(tag)
+                        counter += 1
+                except (json.decoder.JSONDecodeError, KeyError):
+                    pass
+                if counter >= 100:
+                    break
+    return results
+
+
+def get_hash_family(n, m):
+    """
+    Let p be a prime.
+    For any a, b ∈ Z_p = {0, 1, 2, ..., p−1}, define h_a,b : Z_p ⇒ Z_p by h_a,b(x) = ax + b mod p.
+    The resulting collection of functions H = {h_a,b|a, b ∈ Z_p} is a pairwise independent hash family.
+    """
+
+    def get_prime():
+        while True:
+            prime = np.random.random_integers(2 ** 32, 2 ** 34)
+            if all(prime % i != 0 for i in range(3, int((prime ** 0.5) + 1), 2)):
+                return prime
+
+    # Set random number generator seed for consistency
+    np.random.seed(1)
+    H = []
+    # Generate hash family
+    for _ in range(n):
+        _p = get_prime()
+        _a = np.random.randint(1, _p)
+        _b = np.random.randint(0, _p)
+
+        def h(x, a=_a, b=_b, p=_p):
+            # Convert string to integer representation
+            x = sum([ord(char) for char in x])
+            return ((a * x + b) % p) % m
+
+        H.append(h)
+    return H
 
 
 if __name__ == '__main__':
-    results = naive_frequency(500, 0.002)
+    # results = naive_frequency(500, 0.002)
+    results = count_min_sketch(1000000, 100, 0.002)
     print(results)
