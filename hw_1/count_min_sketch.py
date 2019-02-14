@@ -5,12 +5,13 @@
 # of a tweet can be found at https://dev.twitter.com/overview/api/tweets.
 
 
+import heapq
 import json
 import zipfile
 import numpy as np
 
 
-class Node:
+class Node(object):
     """
     http://interactivepython.org/courselib/static/pythonds/Trees/SearchTreeImplementation.html
     """
@@ -257,6 +258,51 @@ class BST(object):
                                                    current_node.right_child.right_child)
 
 
+class MinHeap(object):
+
+    def __init__(self):
+        self.heap = []
+
+    def parent(self, i):
+        return int((i - 1) / 2)
+
+    def insert_key(self, item):
+        key, val = item
+        i = self.get_index_by_value(val)
+        if i is None:
+            heapq.heappush(self.heap, item)
+        else:
+            self.heap[i] = item
+            while i != 0 and self.heap[self.parent(i)][0] > self.heap[i][0]:
+                self.heap[i][0], self.heap[self.parent(i)][0] = (self.heap[self.parent(i)][0], self.heap[i][0])
+
+    def update_key(self, val, new_key):
+        i = self.get_index_by_value(val)
+        self.heap[i] = (new_key, val)
+        while i != 0 and self.heap[self.parent(i)][0] > self.heap[i][0]:
+            self.heap[i][0], self.heap[self.parent(i)][0] = (self.heap[self.parent(i)][0], self.heap[i][0])
+
+    def _insert_key(self, item):
+        heapq.heappush(self.heap, item)
+
+    def _update_key(self, i, new_val):
+        self.heap[i] = new_val
+        while i != 0 and self.heap[self.parent(i)] > self.heap[i]:
+            self.heap[i], self.heap[self.parent(i)] = (self.heap[self.parent(i)], self.heap[i])
+
+    def extract_min(self):
+        return heapq.heappop(self.heap)
+
+    def get_min(self):
+        return self.heap[0]
+
+    def get_index_by_value(self, val):
+        for i, item in enumerate(self.heap):
+            if item[1] == val:
+                return i
+        return None
+
+
 def naive_frequency(k, gamma):
     """
     Maintain a list of items being counted. Initially the list is empty. For each item, if it is the same as some item
@@ -303,23 +349,24 @@ def naive_frequency(k, gamma):
     for tag, freq in items.items():
         if freq / n_hashtags >= gamma:
             results.append(tag)
-    return results  # ['Job', 'Jobs', 'TweetMyJobs', 'meteoAlarm', 'Viña2013']; N = 894098
+    return results  # ['Job', 'Jobs', 'TweetMyJobs', 'meteoAlarm', 'Viña2013']; m = 894098
 
 
-def count_min_sketch(w, s, gamma):
+def count_min_sketch(w, s, k):
     """
     Implement the Count-Min data structure along with min-heap such that any hashtag that occurs at least 0.002th
     fraction of times are returned, and any hashtag that is returned has frequency at least 0.001th fraction of the
     whole dataset size. You should have sufficient confidence on your answer.
     """
-    results = []
+    # TODO: What are error and confidence? In question, how are 0.001 and 0.002 different?
+    minheap = MinHeap()
+    # TODO: How do we calculate w and s for hash functions? Don't we need to know n first?
     sketch = np.zeros((w, s))
     H = get_hash_family(s, w)
-    n_hashtags = 0
     # Open JSON tweet data file
     with zipfile.ZipFile('tweetstream.zip') as zf:
         with zf.open('tweetstream.txt') as f:
-            counter = 0
+            m = 0
             # Read file one line at a time
             for line in f:
                 try:
@@ -328,8 +375,6 @@ def count_min_sketch(w, s, gamma):
                     hashtags = stream['entities']['hashtags']
                     for ht in hashtags:
                         tag = ht['text']
-                        # Increment total number of hashtags seen so far
-                        n_hashtags += 1
                         counts = []
                         # Get hashes for all functions in hash family
                         for i, h in enumerate(H):
@@ -338,14 +383,16 @@ def count_min_sketch(w, s, gamma):
                             counts.append(sketch[j, i])
                         # Get frequency as minimum count
                         freq = min(counts)
-                        # Check if hashtag has frequency >= gamma
-                        if freq / 894098 >= gamma and tag not in results:
-                            results.append(tag)
-                        counter += 1
+                        # Update estimated stream size
+                        m += 1
+                        # Check if hashtag has frequency >= m / k
+                        if freq / m >= 0.001 and tag not in results:  # same as checking freq >= m / k
+                            while minheap.get_min() / m < 0.001:
+                                minheap.extract_min()
+                            minheap.insert_key((freq, tag))
                 except (json.decoder.JSONDecodeError, KeyError):
                     pass
-                if counter >= 100:
-                    break
+                # if m >= 100: break
     return results
 
 
@@ -373,7 +420,7 @@ def get_hash_family(n, m):
 
         def h(x, a=_a, b=_b, p=_p):
             # Convert string to integer representation
-            x = sum([ord(char) for char in x])
+            x = np.product([ord(char)**(len(x) - (i + 1)) for i, char in enumerate(x)])
             return ((a * x + b) % p) % m
 
         H.append(h)
@@ -381,6 +428,7 @@ def get_hash_family(n, m):
 
 
 if __name__ == '__main__':
+    # num_hash = np.log(n / delta)
     # results = naive_frequency(500, 0.002)
     results = count_min_sketch(1000000, 100, 0.002)
     print(results)
