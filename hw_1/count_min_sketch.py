@@ -6,28 +6,26 @@
 
 
 import binascii
-import heapq
 import json
 import zipfile
 import numpy as np
 
 
-BREAK_POINT = 2000
+BREAK_POINT = np.inf
 
 
 class MinHeap(object):
 
-    def __init__(self):
-        self.heap = []
+    def __init__(self, heap=None):
+        if heap is not None:
+            self.heap = heap
+            self._heapify()
+        else:
+            self.heap = []
         self.item_finder = {}
 
     def __str__(self):
-        string = []
-        c = self.heap.copy()
-        while c:
-            string.append(heapq.heappop(c))
-        return str(string)
-        # return str(self.heap)
+        return str(self.heap)
 
     def __len__(self):
         return len(self.heap)
@@ -36,24 +34,78 @@ class MinHeap(object):
         return self.heap[index]
 
     def add_item(self, key, val):
+        # Delete item if already in heap
         if val in self.item_finder:
-            self.remove_item(val)
+            self._remove(val)
+        # Insert item into heap
         item = [key, val]
         self.item_finder[val] = item
-        heapq.heappush(self.heap, item)
-
-    def remove_item(self, val):
-        item = self.item_finder.pop(val)
-        self.heap.remove(item)
+        self._push(item)
 
     def extract_min(self):
+        # Pop minimum item in heap
         while self.heap:
-            head = heapq.heappop(self.heap)
-            del self.item_finder[head[1]]
-            return head
+            min_item = self._pop()
+            del self.item_finder[min_item[1]]
+            return min_item
 
     def get_min(self):
+        # Return minimum item in heap
         return self.heap[0]
+
+    def _push(self, item):
+        self.heap.append(item)
+        self._sift_down(len(self.heap) - 1, 0)
+
+    def _pop(self):
+        last = self.heap.pop()
+        if self.heap:
+            min_item = self.heap[0]
+            self.heap[0] = last
+            self._sift_up(0)
+            return min_item
+        return last
+
+    def _remove(self, val):
+        item = self.item_finder.pop(val)
+        i = self.heap.index(item)
+        self.heap[i] = self.heap[-1]
+        self.heap.pop()
+        if i < len(self.heap):
+            self._sift_up(i)
+            self._sift_down(i, 0)
+
+    def _heapify(self):
+        n = len(self.heap)
+        for i in reversed(range(n // 2)):
+            self._sift_up(i)
+
+    def _sift_down(self, i, start_i):
+        item = self.heap[i]
+        while i > start_i:
+            parent_i = (i - 1) >> 1
+            parent = self.heap[parent_i]
+            if item < parent:
+                self.heap[i] = parent
+                i = parent_i
+            else:
+                break
+        self.heap[i] = item
+
+    def _sift_up(self, i):
+        item = self.heap[i]
+        start_i = i
+        end_i = len(self.heap)
+        child_i = 2 * i + 1
+        while child_i < end_i:
+            right_i = child_i + 1
+            if right_i < end_i and not self.heap[child_i] < self.heap[right_i]:
+                child_i = right_i
+            self.heap[i] = self.heap[child_i]
+            i = child_i
+            child_i = 2 * i + 1
+        self.heap[i] = item
+        self._sift_down(i, start_i)
 
 
 def naive_frequency(target_freq, k):
@@ -81,7 +133,7 @@ def naive_frequency(target_freq, k):
                     for ht in hashtags:
                         # Update estimated stream size
                         stream_size += 1
-                        tag = ht['text']
+                        tag = ht['text'].lower()
                         # Check if hashtag is already in the list
                         if tag in items:
                             # Hashtag is in list: increment counter by one
@@ -112,7 +164,7 @@ def naive_frequency(target_freq, k):
                     hashtags = stream['entities']['hashtags']
                     for ht in hashtags:
                         stream_size += 1
-                        tag = ht['text']
+                        tag = ht['text'].lower()
                         if tag in items:
                             if tag in second_pass:
                                 second_pass[tag] += 1
@@ -120,23 +172,29 @@ def naive_frequency(target_freq, k):
                                 second_pass[tag] = 1
                 except (json.decoder.JSONDecodeError, KeyError):
                     pass
-                if stream_size >= BREAK_POINT: break
+                if stream_size >= BREAK_POINT: break  # TODO: Remove helper code
     for tag, freq in second_pass.items():
         if freq >= target_freq * stream_size:
             heavy_hitters.append(tag)
     return heavy_hitters
 
 
-def count_min_sketch(target_freq, epsilon, delta):
+def count_min_sketch(target_freq, epsilon):
     """
     Implement the Count-Min data structure along with min-heap such that any hashtag that occurs at least 0.002th
     fraction of times are returned, and any hashtag that is returned has frequency at least 0.001th fraction of the
     whole dataset size. You should have sufficient confidence on your answer.
+
+    m/k = 0.002 and m/k - em = 0.001
+    m = 0.002k
+    0.002 - 0.002ke = 0.001
+    ke = 1/2
+    e = 1/2k
+    delta (confidence) = 0.002 and epsilon (error) = 0.001
     """
-    heavy_hitters = []
-    minheap = MinHeap()
-    w = int(1 / epsilon)
-    num_hash = int(np.ceil(np.log(1 / delta)))
+    heavy_hitters = MinHeap()
+    w = int(np.e / epsilon)
+    num_hash = int(np.ceil(np.log(1 / target_freq)))
     sketch = np.zeros((num_hash, w))
     H = _get_hash_family(num_hash, w)
     stream_size = 0
@@ -152,7 +210,7 @@ def count_min_sketch(target_freq, epsilon, delta):
                     for ht in hashtags:
                         # Update estimated stream size
                         stream_size += 1
-                        tag = ht['text']
+                        tag = ht['text'].lower()
                         counts = []
                         # Get hashes for all functions in hash family
                         for i, h in enumerate(H):
@@ -162,22 +220,15 @@ def count_min_sketch(target_freq, epsilon, delta):
                         # Get frequency as minimum count
                         freq = min(counts)
                         # Check if hashtag has frequency >= m / k
-                        # TODO: Problem with min-heap ==> some items are out of order for larger streams, but still no
-                        #  false negatives, which is good
                         if freq >= target_freq * stream_size:
                             # Add hashtag to min-heap or update existing key if hashtag already in heap
-                            minheap.add_item(freq, tag)
+                            heavy_hitters.add_item(freq, tag)
                             # Remove all hashtags in min-heap with frequency < m / k
-                            while minheap.get_min()[0] < target_freq * stream_size:
-                                minheap.extract_min()
-                        if stream_size % 10 == 0: print(minheap)  # TODO: Remove helper code
+                            while heavy_hitters.get_min()[0] < target_freq * stream_size:
+                                heavy_hitters.extract_min()
                 except (json.decoder.JSONDecodeError, KeyError):
                     pass
                 if stream_size >= BREAK_POINT: break  # TODO: Remove helper code
-    # TODO: Update return
-    while minheap:
-        heavy_hitters.append(minheap.extract_min())
-    print(heavy_hitters)
     return heavy_hitters
 
 
@@ -215,6 +266,6 @@ def _get_prime():
 if __name__ == '__main__':
     results1 = naive_frequency(0.002, 500)
     print(len(results1), sorted(results1))
-    results2 = [i[1] for i in count_min_sketch(0.002, 0.001, 0.001)]
+    results2 = [i[1] for i in count_min_sketch(0.002, 0.001)]
     print(len(results2), sorted(results2))
     print(set(results1).issubset(set(results2)))
