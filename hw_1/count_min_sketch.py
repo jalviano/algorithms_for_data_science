@@ -172,7 +172,6 @@ def naive_frequency(target_freq, k):
                                 second_pass[tag] = 1
                 except (json.decoder.JSONDecodeError, KeyError):
                     pass
-                if stream_size >= BREAK_POINT: break  # TODO: Remove helper code
     for tag, freq in second_pass.items():
         if freq >= target_freq * stream_size:
             heavy_hitters.append(tag)
@@ -228,7 +227,6 @@ def count_min_sketch(target_freq, epsilon):
                                 heavy_hitters.extract_min()
                 except (json.decoder.JSONDecodeError, KeyError):
                     pass
-                if stream_size >= BREAK_POINT: break  # TODO: Remove helper code
     return heavy_hitters
 
 
@@ -265,7 +263,9 @@ def _get_prime():
 
 if __name__ == '__main__':
     results1 = naive_frequency(0.002, 500)
-    print(len(results1), sorted(results1))
+    print('Simple frequency algorithm heavy hitters:')
+    print(results1)
+
     results2 = [i[1] for i in count_min_sketch(0.002, 0.001)]
-    print(len(results2), sorted(results2))
-    print(set(results1).issubset(set(results2)))
+    print('Count-min sketch algorithm heavy hitters:')
+    print(results2)
