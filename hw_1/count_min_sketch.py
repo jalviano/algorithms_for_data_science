@@ -5,6 +5,7 @@
 # of a tweet can be found at https://dev.twitter.com/overview/api/tweets.
 
 
+import argparse
 import binascii
 import json
 import zipfile
@@ -150,7 +151,6 @@ def naive_frequency(target_freq, k):
                                     del items[key]
                 except (json.decoder.JSONDecodeError, KeyError):
                     pass
-                if stream_size >= BREAK_POINT: break
     # Get all items with frequency >= m / k
     second_pass = {}
     stream_size = 0
@@ -183,13 +183,6 @@ def count_min_sketch(target_freq, epsilon):
     Implement the Count-Min data structure along with min-heap such that any hashtag that occurs at least 0.002th
     fraction of times are returned, and any hashtag that is returned has frequency at least 0.001th fraction of the
     whole dataset size. You should have sufficient confidence on your answer.
-
-    m/k = 0.002 and m/k - em = 0.001
-    m = 0.002k
-    0.002 - 0.002ke = 0.001
-    ke = 1/2
-    e = 1/2k
-    delta (confidence) = 0.002 and epsilon (error) = 0.001
     """
     heavy_hitters = MinHeap()
     w = int(np.e / epsilon)
@@ -233,7 +226,7 @@ def count_min_sketch(target_freq, epsilon):
 def _get_hash_family(num_hash, m):
     """
     Let p be a prime.
-    For any a, b ∈ Z_p = {0, 1, 2, ..., p−1}, define h_a,b : Z_p ⇒ Z_p by h_a,b(x) = ax + b mod p.
+    For any a, b ∈ Z_p = {0, 1, 2, ..., p−1}, define h_a,b : Z_p ⇒ Z_p by h_a,b(x) = ((ax + b) mod p) mod m.
     The resulting collection of functions H = {h_a,b|a, b ∈ Z_p} is a pairwise independent hash family.
     """
     # Set random number generator seed for consistency
@@ -262,10 +255,22 @@ def _get_prime():
 
 
 if __name__ == '__main__':
-    results1 = naive_frequency(0.002, 500)
-    print('Simple frequency algorithm heavy hitters:')
-    print(results1)
-
-    results2 = [i[1] for i in count_min_sketch(0.002, 0.001)]
-    print('Count-min sketch algorithm heavy hitters:')
-    print(results2)
+    parser = argparse.ArgumentParser(description=__doc__)
+    # Required arguments
+    parser.add_argument('-A', '--algorithm', nargs=1, required=True, type=str,
+                        help='Frequency algorithm to solve heavy hitters problem')
+    # Parse and gather arguments
+    args = parser.parse_args()
+    # Initialize variables
+    arg_algorithm = args.algorithm[0]
+    # Solve heavy hitters problem
+    if arg_algorithm == 'a':
+        # Use simple frequency algorithm
+        results = naive_frequency(0.002, 500)
+        print('Simple frequency algorithm heavy hitters:')
+        print(results)
+    else:
+        # Use count-min sketch algorithm
+        results = [i[1] for i in count_min_sketch(0.002, 0.001)]
+        print('Count-min sketch algorithm heavy hitters:')
+        print(results)
