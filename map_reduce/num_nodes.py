@@ -7,7 +7,7 @@ from mrjob.job import MRJob
 from mrjob.job import MRStep
 
 
-class MST(MRJob):
+class NumNodesCounter(MRJob):
 
     def mapper(self, key, value):
         if '#' not in value and len(value.strip()) > 0:
@@ -25,4 +25,4 @@ class MST(MRJob):
 
 
 if __name__ == '__main__':
-    MST.run()
+    NumNodesCounter.run()

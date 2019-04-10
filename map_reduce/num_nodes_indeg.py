@@ -10,7 +10,7 @@ from mrjob.job import MRStep
 T = 100
 
 
-class MST(MRJob):
+class NumIndegreeNodesCounter(MRJob):
 
     def mapper(self, key, value):
         if '#' not in value and len(value.strip()) > 0:
@@ -34,4 +34,4 @@ class MST(MRJob):
 
 
 if __name__ == '__main__':
-    MST.run()
+    NumIndegreeNodesCounter.run()
