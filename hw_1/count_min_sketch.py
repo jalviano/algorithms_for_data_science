@@ -187,6 +187,7 @@ def count_min_sketch(target_freq, epsilon):
     heavy_hitters = MinHeap()
     w = int(np.e / epsilon)
     num_hash = int(np.ceil(np.log(1 / target_freq)))
+    print(num_hash)
     sketch = np.zeros((num_hash, w))
     H = _get_hash_family(num_hash, w)
     stream_size = 0
